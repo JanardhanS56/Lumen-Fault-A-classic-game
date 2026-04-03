@@ -1,1 +1,3 @@
 # Lumen-Fault-A-classic-game
+
+A classic, interactive web-based arcade game built with HTML. Enjoy nostalgic gaming with smooth performance and engaging mechanics right in your browser.
