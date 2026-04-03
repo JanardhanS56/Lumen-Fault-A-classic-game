@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AURA GRID: NIGHTFALL</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    :root {
+      --bg: #050508;
+      --panel: #0a0a14;
+      --border: #202040;
+      --text: #c0c0d0;
+      --aura: #00e4ff;
+      --night: #100820;
+      --health: #ff2040;
+      --gold: #ffc400;
+      --slot: #151525;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Press Start 2P', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+      font-size: 8px;
+    }
+
+    #app {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      background: rgba(10, 10, 20, 0.8);
+      border: 2px solid var(--border);
+      box-shadow: 0 0 40px rgba(0, 228, 255, 0.05);
+      border-radius: 4px;
+    }
+
+    /* LEFT PANEL */
+    #left-panel { width: 200px; display: flex; flex-direction: column; gap: 16px; }
+    .box { border: 1px solid var(--border); background: var(--panel); padding: 12px; }
+
+    h1 { font-size: 14px; color: var(--aura); text-shadow: 0 0 8px var(--aura); text-align: center; line-height: 1.4; transition: color 0.2s;}
+    h2 { font-size: 8px; color: #606080; text-align: center; margin-top: 4px; }
+    .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .stat-val { color: #fff; }
+
+    .bar-bg { width: 100%; height: 12px; background: #000; border: 1px solid var(--border); position: relative; margin-top: 4px; }
+    .bar-fill { height: 100%; background: var(--aura); transition: width 0.3s ease, background 0.2s; }
+    .bar-text { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; text-shadow: 1px 1px 0 #000; z-index: 2; font-size: 7px; color: #fff;}
+
+    .danger-hp .bar-fill { background: var(--health); }
+    .danger-box { border-color: var(--health); box-shadow: 0 0 10px rgba(255, 32, 64, 0.2); }
+
+    .controls { color: #8080a0; line-height: 1.8; }
+    .key { color: var(--gold); }
+
+    /* RIGHT AREA */
+    #right-area { display: flex; flex-direction: column; gap: 16px; position: relative;}
+
+    #canvas-wrapper {
+      position: relative; border: 2px solid var(--border); background: #000;
+      width: 576px; height: 576px; box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+    }
+
+    canvas { display: block; image-rendering: pixelated; }
+
+    #combat-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.1s; background: rgba(255, 0, 0, 0.3); }
+
+    /* INVENTORY */
+    #inventory { display: flex; gap: 8px; }
+    .slot { width: 50.4px; height: 50.4px; border: 2px solid var(--border); background: var(--slot); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; transition: border-color 0.2s; }
+    .slot.active { border-color: var(--aura); box-shadow: inset 0 0 10px rgba(0, 228, 255, 0.2); }
+    .slot-num { position: absolute; top: 4px; left: 4px; color: #404060; font-size: 6px; }
+    .item-dur { position: absolute; bottom: 4px; right: 4px; color: #fff; font-size: 6px; }
+    .item-name { position: absolute; bottom: -12px; width: 100%; text-align: center; color: #8080a0; font-size: 6px; white-space: nowrap; }
+    .item-icon { width: 24px; height: 24px; background: rgba(0,0,0,0.5); border: 1px solid #444; }
+
+    /* OVERLAYS */
+    #msgs { position: absolute; top: 8px; left: 8px; pointer-events: none; display: flex; flex-direction: column; gap: 4px; }
+    .msg { background: rgba(0,0,0,0.7); padding: 4px 6px; border-left: 2px solid #fff; animation: fadeOut 3s forwards; }
+    @keyframes fadeOut { 0% {opacity:1;} 70% {opacity:1;} 100% {opacity:0;} }
+
+    #curtain { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; z-index: 10; }
+    #curtain h2 { font-size: 24px; color: var(--gold); }
+    #curtain p { font-size: 10px; color: var(--text); line-height: 1.5; text-align: center; max-width: 80%; }
+    #curtain.hidden { display: none; }
+
+    .shake { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+
+    /* ADMIN PANEL */
+    #admin-panel {
+      position: fixed; top: 16px; right: 16px; width: 300px;
+      background: rgba(5, 5, 10, 0.95); border: 1px solid var(--gold);
+      padding: 16px; box-shadow: 0 0 20px rgba(0,0,0,0.9);
+      display: none; flex-direction: column; gap: 12px; z-index: 1000;
+      max-height: 90vh; overflow-y: auto; user-select: text;
+    }
+    #admin-panel.open { display: flex; }
+    #admin-panel h3 { font-size: 10px; color: var(--gold); text-align: center; margin-bottom: 8px;}
+    .admin-group { display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; }
+    .admin-row { display: flex; justify-content: space-between; align-items: center; }
+    .admin-label { font-size: 7px; color: var(--text); flex: 1;}
+    .admin-input-col { display: flex; align-items: center; gap: 6px; }
+    input[type=range] { width: 80px; accent-color: var(--gold); }
+    input[type=number] { width: 40px; font-family: inherit; font-size: 7px; background: #000; color: #fff; border: 1px solid var(--border); text-align: center; }
+    input[type=color] { width: 24px; height: 16px; border: none; padding: 0; background: none; cursor: pointer; }
+    .admin-btn { background: #151525; border: 1px solid var(--border); color: #fff; font-family: inherit; font-size: 7px; padding: 6px; cursor: pointer;}
+    .admin-btn:hover { background: var(--border); }
+    .admin-close { position: absolute; top: 8px; right: 8px; cursor: pointer; color: #fff; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="left-panel">
+      <div class="box">
+        <h1>AURA GRID</h1>
+        <h2 id="ui-level">LEVEL 1</h2>
+      </div>
+
+      <div class="box" id="aura-box">
+        <div class="stat-row"><span>AURA</span> <span id="ui-moves">Moves: 0</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="bar-aura" style="width: 100%;"></div><div class="bar-text" id="ui-aura-txt">100/100</div></div>
+      </div>
+
+      <div class="box">
+        <div class="stat-row"><span>TIME</span> <span id="ui-time-state" class="stat-val" style="color:var(--gold)">DAY</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="bar-time" style="width: 0%; background:#8080a0;"></div></div>
+      </div>
+
+      <div class="box">
+        <div class="stat-row"><span>POISON</span> <span id="ui-poison" class="stat-val">0</span></div>
+        <div class="stat-row"><span>SPHERE HP</span> <span id="ui-shp" class="stat-val">100</span></div>
+        <div class="stat-row"><span>ENEMIES</span> <span id="ui-enemies" class="stat-val">0</span></div>
+        <div class="stat-row"><span>GRAVES</span> <span id="ui-graves" class="stat-val">0</span></div>
+      </div>
+
+      <div class="box controls">
+        <span class="key">↑↓←→</span> Move<br><br>
+        <span class="key">SPC</span> Interact<br><br>
+        <span class="key">S+S</span> Attack<br><br>
+        <span class="key">E</span> Inventory<br><br>
+        <span class="key">R</span> Restart<br><br>
+        <span class="key" style="margin-top:10px;display:block;">~ (Tilde)</span> Admin
+      </div>
+    </div>
+
+    <div id="right-area">
+      <div id="canvas-wrapper">
+        <canvas id="c"></canvas>
+        <div id="msgs"></div>
+        <div id="combat-flash"></div>
+        <div id="curtain">
+          <h2 id="curtain-title">AURA GRID</h2>
+          <p id="curtain-desc">Move: Arrows | Interact: Space<br><br>Survive 32 moves. Manage your aura.</p>
+          <p style="color:var(--aura); margin-top: 10px;">PRESS SPACE TO START</p>
+        </div>
+      </div>
+
+      <div id="inventory"></div>
+    </div>
+  </div>
+
+  <!-- ADMIN PANEL -->
+  <div id="admin-panel">
+    <div class="admin-close" onclick="document.getElementById('admin-panel').classList.remove('open');">&times;</div>
+    <h3>ADMIN DASHBOARD</h3>
+    <div id="admin-content"></div>
+    <div style="display:flex; justify-content:space-between; margin-top:8px;">
+      <button class="admin-btn" onclick="saveConfig()">Save Params</button>
+      <button class="admin-btn" onclick="resetConfig()">Reset Default</button>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    /* ==============================================================
+       SYSTEM CONFIGURATION (ADMIN EDITABLE)
+       ============================================================== */
+    const DEFAULT_CONFIG = {
+      // Gameplay Mechanics
+      maxAura: { v: 100, min: 50, max: 500, step: 10, type: 'num', t: 'Max Aura' },
+      moveCostFast: { v: -3, min: -10, max: 0, step: 1, type: 'num', t: 'Cost (Near Sphere)' },
+      moveCostSlow: { v: -5, min: -10, max: 0, step: 1, type: 'num', t: 'Cost (Far)' },
+      bushAura: { v: 5, min: 0, max: 50, step: 1, type: 'num', t: 'Bush Gain' },
+      graveKillAura: { v: 50, min: 0, max: 200, step: 5, type: 'num', t: 'Grave Destroy Gain' },
+      sphereMaxHp: { v: 100, min: 50, max: 500, step: 10, type: 'num', t: 'Sphere HP' },
+      dayTicks: { v: 40, min: 10, max: 200, step: 1, type: 'num', t: 'Moves per Day/Night' },
+      visMemDay: { v: 3, min: 1, max: 8, step: 1, type: 'num', t: 'Day Vision Memory' },
+      visMemNight: { v: 1, min: 0, max: 8, step: 1, type: 'num', t: 'Night Vision Memory' },
+      
+      // Combat
+      enemyDmgDay: { v: 15, min: 0, max: 50, step: 1, type: 'num', t: 'Enemy Dmg (Day)' },
+      enemyDmgNight: { v: 25, min: 0, max: 50, step: 1, type: 'num', t: 'Enemy Dmg (Night)' },
+      spawnRateDay: { v: 4, min: 1, max: 10, step: 1, type: 'num', t: 'Spawn /Moves (Day)' },
+      spawnRateNight: { v: 2, min: 1, max: 10, step: 1, type: 'num', t: 'Spawn /Moves (Night)' },
+
+      // Engine
+      lerpSpeed: { v: 12, min: 1, max: 30, step: 1, type: 'num', t: 'Anim Lerp Speed' },
+      particleCount: { v: 15, min: 0, max: 50, step: 1, type: 'num', t: 'Particle Burst Size' },
+      
+      // Colors
+      colAura: { v: '#00e4ff', type: 'col', t: 'Aura Color' },
+      colHealth: { v: '#ff2040', type: 'col', t: 'Hostile Color' },
+      colGold: { v: '#ffc400', type: 'col', t: 'Sphere/Day Color' },
+      colNight: { v: '#100820', type: 'col', t: 'Night Background' }
+    };
+
+    let CONFIG = {};
+
+    function initConfig() {
+      const saved = localStorage.getItem('auraGridConfig');
+      const parsed = saved ? JSON.parse(saved) : {};
+      
+      for (const key in DEFAULT_CONFIG) {
+        CONFIG[key] = parsed[key] !== undefined ? parsed[key] : DEFAULT_CONFIG[key].v;
+      }
+      applyConfigCSS();
+      buildAdminPanel();
+    }
+
+    function applyConfigCSS() {
+      document.documentElement.style.setProperty('--aura', CONFIG.colAura);
+      document.documentElement.style.setProperty('--health', CONFIG.colHealth);
+      document.documentElement.style.setProperty('--gold', CONFIG.colGold);
+      document.documentElement.style.setProperty('--night', CONFIG.colNight);
+      
+      P.aura = CONFIG.colAura; P.health = CONFIG.colHealth;
+      P.gold = CONFIG.colGold; P.night = CONFIG.colNight;
+      
+      if(G && G.maxAura) {
+        G.maxAura = CONFIG.maxAura;
+        G.aura = utils.clamp(G.aura, 0, G.maxAura);
+        syncUI();
+      }
+    }
+
+    function saveConfig() {
+      localStorage.setItem('auraGridConfig', JSON.stringify(CONFIG));
+      msg('Parameters Saved', CONFIG.colGold);
+      document.getElementById('admin-panel').classList.remove('open');
+    }
+
+    function resetConfig() {
+      localStorage.removeItem('auraGridConfig');
+      initConfig();
+      msg('Defaults Restored', CONFIG.colAura);
+    }
+
+    function handleConfigChange(key, value) {
+      if(DEFAULT_CONFIG[key].type === 'num') value = parseFloat(value);
+      CONFIG[key] = value;
+      // Mirror the value inputs
+      const range = document.getElementById(`adm-r-${key}`);
+      const num = document.getElementById(`adm-n-${key}`);
+      if(range) range.value = value;
+      if(num) num.value = value;
+      applyConfigCSS();
+    }
+
+    function buildAdminPanel() {
+      const p = document.getElementById('admin-content');
+      let html = '';
+      
+      // Grouping
+      const groups = [
+        {title: 'Mechanics', keys: ['maxAura', 'moveCostFast', 'moveCostSlow', 'bushAura', 'graveKillAura', 'dayTicks', 'visMemDay', 'visMemNight']},
+        {title: 'Combat', keys: ['sphereMaxHp', 'enemyDmgDay', 'enemyDmgNight', 'spawnRateDay', 'spawnRateNight']},
+        {title: 'Engine & Visuals', keys: ['lerpSpeed', 'particleCount', 'colAura', 'colHealth', 'colGold', 'colNight']}
+      ];
+
+      groups.forEach(g => {
+        html += `<div class="admin-group"><div style="font-size:8px;color:#fff">${g.title}</div>`;
+        g.keys.forEach(k => {
+          const cfg = DEFAULT_CONFIG[k];
+          html += `<div class="admin-row"><span class="admin-label">${cfg.t}:</span>`;
+          if (cfg.type === 'num') {
+            html += `<div class="admin-input-col">
+              <input type="range" id="adm-r-${k}" min="${cfg.min}" max="${cfg.max}" step="${cfg.step}" value="${CONFIG[k]}" oninput="handleConfigChange('${k}', this.value)">
+              <input type="number" id="adm-n-${k}" min="${cfg.min}" max="${cfg.max}" step="${cfg.step}" value="${CONFIG[k]}" oninput="handleConfigChange('${k}', this.value)">
+            </div>`;
+          } else if (cfg.type === 'col') {
+             html += `<div class="admin-input-col">
+               <input type="color" id="adm-c-${k}" value="${CONFIG[k]}" oninput="handleConfigChange('${k}', this.value)">
+             </div>`;
+          }
+          html += `</div>`;
+        });
+        html += `</div>`;
+      });
+      p.innerHTML = html;
+    }
+
+    /* ==============================================================
+       AUDIO ENGINE
+       ============================================================== */
+    const Audio = {
+      ctx: null,
+      init() {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+      },
+      play(freq, type, dur, vol, slideFreq) {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, this.ctx.currentTime + dur);
+        
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+        
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(); osc.stop(this.ctx.currentTime + dur);
+      },
+      step() { this.play(120, 'triangle', 0.1, 0.2, 80); },
+      blip() { this.play(600, 'square', 0.1, 0.05, 800); },
+      hurt() { this.play(80, 'sawtooth', 0.3, 0.4, 40); },
+      hit() { this.play(300, 'square', 0.15, 0.2, 100); },
+      pickup() { this.play(400, 'sine', 0.2, 0.1, 1200); },
+      error() { this.play(150, 'square', 0.2, 0.1, 100); },
+      explode() { this.play(100, 'sawtooth', 0.5, 0.3, 20); }
+    };
+
+    /* ==============================================================
+       CONSTANTS & INIT
+       ============================================================== */
+    const GS = 16; const T = 36;
+    const CV = document.getElementById('c');
+    const CX = CV.getContext('2d', { alpha: false });
+    CV.width = GS * T; CV.height = GS * T;
+
+    const DOM = {
+      lv: document.getElementById('ui-level'), moves: document.getElementById('ui-moves'),
+      auraFill: document.getElementById('bar-aura'), auraTxt: document.getElementById('ui-aura-txt'),
+      timeFill: document.getElementById('bar-time'), timeState: document.getElementById('ui-time-state'),
+      poison: document.getElementById('ui-poison'), shp: document.getElementById('ui-shp'),
+      enemies: document.getElementById('ui-enemies'), graves: document.getElementById('ui-graves'),
+      auraBox: document.getElementById('aura-box'), msgs: document.getElementById('msgs'),
+      inv: document.getElementById('inventory'), flash: document.getElementById('combat-flash'),
+      wrapper: document.getElementById('canvas-wrapper'), curtain: document.getElementById('curtain'),
+      cTitle: document.getElementById('curtain-title'), cDesc: document.getElementById('curtain-desc')
+    };
+
+    const P = {
+      bg: '#050508', text: '#c0c0d0', 
+      grass: '#1a2e12', grass2: '#223d18', grass3: '#15240f',
+      bush: '#206610', pbush: '#661066',
+      water: '#103060', water2: '#184888',
+      mnt: '#303038', mnt2: '#40404a',
+      grave: '#201810', grave2: '#302418',
+      swordC: '#90a0b0', shieldC: '#2050a0', lampC: '#ffe040', digC: '#805020', raftC: '#a06030'
+    }; // Dynamic config colors populate here too.
+
+    const TD = {
+      GRASS:  { c: P.grass, c2: '#204018', d: 0, n: 'Grass' },
+      GRASS2: { c: P.grass2, c2: '#2a4a20', d: 0, n: 'Meadow' },
+      GRASS3: { c: P.grass3, c2: '#1c3414', d: 0, n: 'Scrub' },
+      BUSH:   { c: P.bush, c2: '#2a8818', d: 1, n: 'Bush', act: 'bush' },
+      PBUSH:  { c: P.pbush, c2: '#881888', d: 2, n: 'Spore Bush', act: 'pbush' },
+      WATER:  { c: P.water, c2: P.water2, d: 2, n: 'Deep Water' },
+      MOUNTAIN: { c: P.mnt, c2: P.mnt2, d: 0, n: 'Mountain', blockVis: true },
+      GRAVE:  { c: P.grave, c2: P.grave2, d: 3, n: 'Grave', act: 'grave', isSpawn: true }
+    };
+
+    const ITEMS = {
+      sword: { n: 'Sword', c: P.swordC, dur: 10 }, shield: { n: 'Shield', c: P.shieldC, dur: 8 },
+      lamp: { n: 'Lamp', c: P.lampC, dur: null }, gravedig: { n: 'Shovel', c: P.digC, dur: null },
+      raft: { n: 'Raft', c: P.raftC, dur: 3 }
+    };
+
+    const utils = {
+      rnd: a => a[0 | Math.random() * a.length], ri: (a, b) => a + (0 | Math.random() * (b - a + 1)),
+      clamp: (v, lo, hi) => v < lo ? lo : v > hi ? hi : v, inB: (x, y) => x >= 0 && x < GS && y >= 0 && y < GS,
+      tl: (x, y) => utils.inB(x, y) ? G.grid[y][x] : null, lerp: (a, b, t) => a + (b - a) * t
+    };
+
+    let G = {}; let Particles = []; let state = 'TITLE'; let timeLast = 0;
+
+    /* ==============================================================
+       SYSTEM LOGIC
+       ============================================================== */
+    function initGame(lvl, carriedAura) {
+      targetDOM();
+      
+      G = {
+        lv: lvl, moves: 0,
+        aura: carriedAura !== undefined ? carriedAura : CONFIG.maxAura, maxAura: CONFIG.maxAura,
+        grid: [], visReq: [], visMem: [], 
+        px: 8, py: 14, cx: 8, cy: 14, sx: 8, sy: 3, sHp: CONFIG.sphereMaxHp,
+        inv: Array(10).fill(null), selSlot: 0, invOpen: false,
+        enemies: [], graves: [], spawnCtr: 0, gravesKilled: 0,
+        poison: { stacks: 0, dur: 0 }, lastSpc: 0,
+        timeDay: true, timeTicks: 0
+      };
+
+      buildGrid();
+      if (lvl === 1) { placeObj('sword', 1); placeObj('shield', 1); placeObj('raft', 1); G.totalGraves = 0; }
+      else { setupLv2(); placeObj('sword', 1); placeObj('gravedig', 1); }
+
+      updateVis(); syncUI(); state = 'PLAY';
+      DOM.curtain.classList.add('hidden');
+      msg(lvl === 1 ? 'Survive 32 moves!' : 'Destroy all graves!', CONFIG.colAura);
+      if(Audio.ctx) Audio.blip();
+    }
+
+    function startScreen() {
+      initConfig(); // Prepare parameters
+      initGame(1, CONFIG.maxAura);
+      state = 'TITLE'; DOM.curtain.classList.remove('hidden');
+      DOM.cTitle.innerText = 'AURA GRID'; DOM.cTitle.style.color = CONFIG.colAura;
+      DOM.cDesc.innerText = 'Move: Arrows | Interact: Space\n\nSurvive 32 moves. Manage your aura.\n\n~ Admin Panel';
+    }
+
+    function buildGrid() {
+      const pool = [...Array(30).fill('GRASS'), ...Array(16).fill('GRASS2'), ...Array(12).fill('GRASS3'),
+        ...Array(10).fill('BUSH'), ...Array(6).fill('PBUSH'), ...Array(12).fill('MOUNTAIN'), ...Array(10).fill('WATER')];
+      for (let y = 0; y < GS; y++) {
+        G.grid[y] = [];
+        for (let x = 0; x < GS; x++) G.grid[y][x] = { tp: utils.rnd(pool), item: null, sp: null, fogged: true, mem: null };
+      }
+      clearZone(G.px, G.py, 2); clearZone(G.sx, G.sy, 2);
+    }
+    function clearZone(cx, cy, r) {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++)
+        if (utils.inB(cx + dx, cy + dy)) G.grid[cy + dy][cx + dx].tp = 'GRASS';
+    }
+    function placeObj(id, count) {
+      for(let i=0; i<count; i++) {
+        let ok = false, tries = 0;
+        while (!ok && tries < 300) { tries++;
+          const x = utils.ri(1, 14), y = utils.ri(3, 13), t = utils.tl(x, y);
+          if (t && TD[t.tp].d === 0 && t.tp !== 'MOUNTAIN' && !t.item && !t.sp) { t.item = id; ok = true; }
+        }
+      }
+    }
+    function setupLv2() {
+      G.totalGraves = G.aura >= CONFIG.maxAura*0.8 ? 5 : 3;
+      for (let i = 0; i < G.totalGraves; i++) {
+        let ok = false, tries = 0;
+        while (!ok && tries < 300) { tries++;
+          const x = utils.ri(2, 13), y = utils.ri(8, 14), t = utils.tl(x, y);
+          if (t && TD[t.tp].d < 2 && !t.sp && !t.item && t.tp !== 'MOUNTAIN') {
+            t.tp = 'GRAVE'; t.sp = { hp: 50, maxHp: 50, spawned: 0 }; G.graves.push({ x, y }); ok = true;
+          }
+        }
+      }
+    }
+
+    function updateVis() {
+      for (let y = 0; y < GS; y++) for (let x = 0; x < GS; x++) G.grid[y][x].fogged = true;
+      G.visMem.push({x: G.px, y: G.py});
+      const maxMem = G.timeDay ? CONFIG.visMemDay : CONFIG.visMemNight; 
+      while(G.visMem.length > maxMem) G.visMem.shift();
+      G.visMem.forEach(v => { if(utils.tl(v.x, v.y)) utils.tl(v.x, v.y).fogged = false; });
+      utils.tl(G.px, G.py).fogged = false;
+
+      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      dirs.forEach(([dx, dy]) => {
+        let nx = G.px + dx, ny = G.py + dy, t = utils.tl(nx, ny);
+        if (t) t.fogged = false;
+      });
+      utils.tl(G.sx, G.sy).fogged = false;
+    }
+
+    function changeAura(delta) {
+      if (state !== 'PLAY') return;
+      G.aura = utils.clamp(G.aura + delta, 0, G.maxAura);
+      if (delta !== 0) msg(`${delta > 0 ? '+' : ''}${delta} aura`, delta > 0 ? '#00ffaa' : CONFIG.colHealth);
+      if (delta < 0) { DOM.wrapper.classList.add('shake'); setTimeout(() => DOM.wrapper.classList.remove('shake'), 300); }
+      if (G.aura <= 0) gameOver(false, 'AURA DEPLETED');
+      syncUI();
+    }
+
+    function spawnParticles(x, y, color, baseCount) {
+      const count = baseCount * (CONFIG.particleCount / 15);
+      for(let i=0; i<count; i++) {
+        Particles.push({
+          x: x * T + T/2, y: y * T + T/2,
+          vx: (Math.random() - 0.5) * 50, vy: (Math.random() - 0.5) * 50,
+          life: 1.0, col: color, size: utils.ri(1,3)
+        });
+      }
+    }
+
+    function movePlayer(dx, dy) {
+      if (state !== 'PLAY' || G.invOpen) return;
+      let nx = G.px + dx, ny = G.py + dy;
+      if (!utils.inB(nx, ny)) return;
+
+      const t = utils.tl(nx, ny);
+      if (t.tp === 'MOUNTAIN') { msg('Mountain blocks path', P.text); Audio.error(); return; }
+      if (t.tp === 'WATER') {
+        const raftIdx = G.inv.findIndex(s => s && s.id === 'raft');
+        if (raftIdx > -1) {
+          G.inv[raftIdx].dur--;
+          if (G.inv[raftIdx].dur <= 0) { G.inv[raftIdx] = null; msg('Raft broke!', CONFIG.colGold); }
+          msg('Crossed water', P.raftC);
+        } else { msg('Need a raft!', P.water2); Audio.error(); return; }
+      }
+
+      G.px = nx; G.py = ny; G.moves++;
+      
+      const cost = (Math.abs(G.px - G.sx) <= 2 && Math.abs(G.py - G.sy) <= 2) ? CONFIG.moveCostFast : CONFIG.moveCostSlow;
+      changeAura(cost); if(state !== 'PLAY') return;
+
+      Audio.step();
+      G.timeTicks++;
+      if (G.timeTicks >= CONFIG.dayTicks) {
+        G.timeTicks = 0; G.timeDay = !G.timeDay;
+        msg(G.timeDay ? 'DAYBREAK' : 'NIGHT FALLS', G.timeDay ? CONFIG.colGold : CONFIG.colHealth);
+      }
+
+      if (t.item) { pickup(t.item); t.item = null; }
+      if (t.mem === 'poisoned') { G.poison.stacks = utils.clamp(G.poison.stacks+1, 0, 3); G.poison.dur = 5; msg('Poisoned!', P.pbush); Audio.hurt(); }
+      
+      if (G.poison.stacks > 0) { 
+        changeAura(-G.poison.stacks); G.poison.dur--; 
+        if(G.poison.dur<=0) G.poison.stacks = 0; 
+      }
+      updateVis();
+
+      if (G.lv === 2) { spawnTick(); stepEnemies(); } 
+      else if (G.lv === 1 && G.moves >= 32) { gameOver(true, 'LEVEL 1 SURVIVED'); setTimeout(() => initGame(2, G.aura), 3000); }
+      syncUI();
+    }
+
+    function interact() {
+      if (state !== 'PLAY' || G.invOpen) return;
+      const t = utils.tl(G.px, G.py);
+      if (t.tp === 'BUSH') { changeAura(CONFIG.bushAura); t.tp = 'GRASS'; spawnParticles(G.px, G.py, '#0f0', 10); Audio.pickup(); }
+      else if (t.tp === 'PBUSH') { changeAura(-6); G.poison.stacks++; G.poison.dur=5; t.tp = 'GRASS'; spawnParticles(G.px, G.py, '#f0f', 10); Audio.hurt(); }
+      else if (t.tp === 'GRAVE') {
+        if (G.inv.some(s => s && s.id === 'gravedig')) {
+          t.sp.hp -= 25; spawnParticles(G.px, G.py, P.digC, 15); Audio.hit();
+          if (t.sp.hp <= 0) {
+            t.tp = 'GRASS'; t.sp = null; G.gravesKilled++; G.graves = G.graves.filter(g => g.x !== G.px || g.y !== G.py);
+            changeAura(CONFIG.graveKillAura); msg('GRAVE DESTROYED!', CONFIG.colGold);
+            if (G.graves.length === 0) gameOver(true, 'ALL GRAVES DESTROYED');
+          } else msg(`Grave: ${t.sp.hp}HP`, P.text);
+        } else { msg('Need Shovel!', P.text); Audio.error(); }
+      } else { msg('Nothing here', '#555'); }
+      syncUI();
+    }
+
+    function attack() {
+      if (state !== 'PLAY' || G.invOpen) return;
+      let hitAny = false;
+      for (let i = G.enemies.length - 1; i >= 0; i--) {
+        const e = G.enemies[i];
+        if (Math.abs(e.px - G.px) <= 1 && Math.abs(e.py - G.py) <= 1) {
+          hitAny = true; spawnParticles(e.px, e.py, CONFIG.colHealth, 15);
+          if (e.type === 'spore') { utils.tl(e.px, e.py).mem = 'poisoned'; msg('Spore poisoned tile', P.pbush); Audio.explode(); } 
+          else { changeAura(10); Audio.hit(); }
+          G.enemies.splice(i, 1);
+        }
+      }
+      if (hitAny) {
+        const si = G.inv.findIndex(s => s && s.id === 'sword');
+        if (si > -1) { G.inv[si].dur--; if (G.inv[si].dur <= 0) { G.inv[si] = null; msg('Sword broke!', '#555'); } }
+      } else { msg('Swung at air', '#555'); }
+      syncUI();
+    }
+
+    function pickup(id) {
+      const slot = G.inv.findIndex(s => s === null);
+      if (slot === -1) { msg('Inventory full!', CONFIG.colHealth); return; }
+      G.inv[slot] = { ...ITEMS[id], id }; Audio.pickup(); msg(`Picked up ${ITEMS[id].n}`, '#0ff');
+    }
+
+    function toggleInv() {
+      if (state !== 'PLAY') return;
+      G.invOpen = !G.invOpen; msg(G.invOpen ? 'Inventory Open' : 'Inventory Closed', '#fff'); Audio.blip(); syncUI();
+    }
+
+    function useSlot() {
+      const it = G.inv[G.selSlot]; if (!it) return;
+      if (it.id === 'lamp') { changeAura(10); msg('Aura restored lightly', CONFIG.colGold); G.inv[G.selSlot] = null; } 
+      else if (it.id === 'sword') attack(); else if (it.id === 'gravedig') interact();
+      Audio.blip(); syncUI();
+    }
+
+    function spawnTick() {
+      G.spawnCtr++;
+      const rate = G.timeDay ? CONFIG.spawnRateDay : CONFIG.spawnRateNight; 
+      if (G.spawnCtr >= rate) {
+        G.spawnCtr = 0; const validGraves = G.graves;
+        if (validGraves.length === 0) return;
+        const g = utils.rnd(validGraves); spawnEnemy(g.x, g.y);
+      }
+    }
+
+    function spawnEnemy(gx, gy) {
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      for(const [dx, dy] of dirs) {
+        const nx = gx+dx, ny = gy+dy;
+        if (utils.inB(nx, ny) && !G.enemies.some(e=>e.px===nx && e.py===ny) && utils.tl(nx,ny).tp!=='MOUNTAIN') {
+          const type = Math.random() > 0.7 ? 'spore' : (Math.random() > 0.5 ? 'stalker' : 'grunt');
+          G.enemies.push({ px: nx, py: ny, cx: nx, cy: ny, state: 'move', charge: 0, type });
+          msg(`Spawned ${type}!`, CONFIG.colHealth); return;
+        }
+      }
+    }
+
+    function stepEnemies() {
+      const dead = [];
+      G.enemies.forEach((e, i) => {
+        if (e.state === 'charge') {
+          e.charge--;
+          if (e.charge <= 0) {
+            if (e.px === G.sx && e.py === G.sy) {
+              G.sHp -= 20; msg('Sphere attacked!', CONFIG.colHealth); Audio.explode();
+              if (G.sHp <= 0) gameOver(false, 'SPHERE DESTROYED');
+            } else if (Math.abs(e.px - G.px) <= 1 && Math.abs(e.py - G.py) <= 1) {
+              const si = G.inv.findIndex(s=>s&&s.id==='shield');
+              if (si > -1) { msg('Shield blocked hit', P.shieldC); G.inv[si].dur--; if(G.inv[si].dur<=0) G.inv[si]=null; } 
+              else {
+                changeAura(G.timeDay ? -CONFIG.enemyDmgDay : -CONFIG.enemyDmgNight); 
+                msg('Enemy struck you!', CONFIG.colHealth); Audio.hurt();
+                DOM.flash.style.opacity = 1; setTimeout(()=>DOM.flash.style.opacity=0, 150);
+              }
+            }
+            dead.push(i);
+          }
+        } else {
+          if (e.type === 'spore') { const dirs = [[1,0],[-1,0],[0,1],[0,-1]]; tryMoveEnemy(e, e.px+utils.rnd(dirs)[0], e.py+utils.rnd(dirs)[1]); } 
+          else if (e.type === 'stalker') {
+            const pdx = G.px - e.px, pdy = G.py - e.py;
+            if (Math.abs(pdx) <= 1 && Math.abs(pdy) <= 1) e.state = 'charge'; else tryMoveEnemy(e, e.px + Math.sign(pdx), e.py + Math.sign(pdy));
+          } else {
+            const target = (Math.abs(G.px-e.px) < 4) ? {x:G.px, y:G.py} : {x:G.sx, y:G.sy};
+            tryMoveEnemy(e, e.px + Math.sign(target.x - e.px), e.py + Math.sign(target.y - e.py));
+          }
+
+          if (e.state !== 'charge' && ((e.px === G.sx && e.py === G.sy) || (Math.abs(e.px - G.px) <= 1 && Math.abs(e.py - G.py) <= 1))) {
+            e.state = 'charge'; e.charge = e.type === 'stalker' ? 1 : 2;
+          }
+        }
+      });
+      for (let i = dead.length-1; i>=0; i--) G.enemies.splice(dead[i],1);
+    }
+    function tryMoveEnemy(e, nx, ny) { if(utils.inB(nx,ny) && utils.tl(nx,ny).tp!=='MOUNTAIN' && !G.enemies.some(x=>x.px===nx && x.py===ny)){ e.px = nx; e.py = ny; } }
+
+    function syncUI() {
+      DOM.lv.innerText = `LEVEL ${G.lv}`; DOM.moves.innerText = G.moves;
+      DOM.auraTxt.innerText = `${G.aura}/${G.maxAura}`; DOM.auraFill.style.width = `${(G.aura/G.maxAura)*100}%`;
+      if(G.aura <= 30) DOM.auraBox.classList.add('danger-hp'); else DOM.auraBox.classList.remove('danger-hp');
+      DOM.poison.innerText = G.poison.stacks; DOM.shp.innerText = `${G.sHp}/${CONFIG.sphereMaxHp}`;
+      DOM.enemies.innerText = G.enemies.length; DOM.graves.innerText = `${G.totalGraves - G.gravesKilled}/${G.totalGraves}`;
+      DOM.timeState.innerText = G.timeDay ? 'DAY' : 'NIGHT'; DOM.timeState.style.color = G.timeDay ? CONFIG.colGold : CONFIG.colHealth;
+      DOM.timeFill.style.width = `${(G.timeTicks/CONFIG.dayTicks)*100}%`; DOM.timeFill.style.background = G.timeDay ? CONFIG.colGold : CONFIG.colHealth;
+
+      let html = '';
+      for(let i=0; i<10; i++) {
+        const it = G.inv[i], act = (G.invOpen && i===G.selSlot) ? 'active' : '';
+        if(it) html += `<div class="slot ${act}"><div class="slot-num">${i+1}</div><div class="item-icon" style="background:${it.c}"></div><div class="item-name">${it.n}</div>${it.dur!==null?`<div class="item-dur">${it.dur}</div>`:''}</div>`;
+        else html += `<div class="slot ${act}"><div class="slot-num">${i+1}</div></div>`;
+      }
+      DOM.inv.innerHTML = html;
+    }
+    function msg(text, col) {
+      const el = document.createElement('div'); el.className = 'msg'; el.style.color = col; el.innerText = text;
+      DOM.msgs.appendChild(el); if(DOM.msgs.children.length > 5) DOM.msgs.removeChild(DOM.msgs.firstChild);
+      setTimeout(() => { if(DOM.msgs.contains(el)) DOM.msgs.removeChild(el) }, 3000);
+    }
+    function gameOver(win, note) {
+      state = win ? 'WON' : 'OVER'; G.invOpen = false; DOM.curtain.classList.remove('hidden');
+      DOM.cTitle.innerText = win ? 'VICTORY' : 'DEFEAT'; DOM.cTitle.style.color = win ? CONFIG.colGold : CONFIG.colHealth;
+      DOM.cDesc.innerText = `${note}\nSurvive Moves: ${G.moves}\nRemaining Aura: ${G.aura}`;
+    }
+    function targetDOM() { while(DOM.msgs.firstChild) DOM.msgs.removeChild(DOM.msgs.firstChild); }
+
+    function update(dt) {
+      if (state !== 'PLAY') return;
+      const spd = CONFIG.lerpSpeed * dt;
+      G.cx = utils.lerp(G.cx, G.px, spd); G.cy = utils.lerp(G.cy, G.py, spd);
+      G.enemies.forEach(e => { e.cx = utils.lerp(e.cx, e.px, spd); e.cy = utils.lerp(e.cy, e.py, spd); });
+      for(let i=Particles.length-1; i>=0; i--) { let p = Particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 1.5; if(p.life <= 0) Particles.splice(i,1); }
+    }
+
+    function render(time) {
+      CX.fillStyle = G.timeDay ? P.bg : P.night; CX.fillRect(0, 0, CV.width, CV.height);
+      if(state === 'TITLE') return;
+
+      for(let y=0; y<GS; y++) {
+        for(let x=0; x<GS; x++) {
+          const t = G.grid[y][x], px = x * T, py = y * T;
+          if (t.fogged) { CX.fillStyle = '#020205'; CX.fillRect(px, py, T, T); if ((x+y)%2===0){ CX.fillStyle='#050508'; CX.fillRect(px,py,T,T); } continue; }
+          const def = TD[t.tp]; CX.fillStyle = def.c; CX.fillRect(px, py, T, T); CX.fillStyle = def.c2; CX.fillRect(px+T/2, py, T/2, T);
+          if (t.item) { CX.fillStyle = ITEMS[t.item].c; CX.fillRect(px+12, py+12, 12, 12); CX.fillStyle = '#fff'; CX.fillRect(px+14, py+14, 4, 4); }
+          if (t.mem === 'poisoned') { CX.fillStyle = 'rgba(120,20,180,0.4)'; CX.fillRect(px, py, T, T); }
+          if (t.sp) { CX.fillStyle = P.grave2; CX.fillRect(px+4, py+4, T-8, T-8); CX.fillStyle = '#ff2200'; CX.fillRect(px+6, py+(T-8), (T-12)*(t.sp.hp/t.sp.maxHp), 2); }
+        }
+      }
+      const spx = G.sx * T, spy = G.sy * T, pulse = Math.abs(Math.sin(time*0.003));
+      CX.fillStyle = `rgba(255,200,0,${0.2 + pulse*0.3})`; CX.beginPath(); CX.arc(spx+T/2, spy+T/2, T*0.8, 0, Math.PI*2); CX.fill();
+      CX.fillStyle = P.gold; CX.fillRect(spx+8, spy+8, T-16, T-16);
+
+      G.enemies.forEach(e => {
+        const ex = e.cx * T + T/2, ey = e.cy * T + T/2;
+        CX.fillStyle = e.state === 'charge' ? P.gold : (e.type === 'spore' ? '#aa11cc' : P.health);
+        CX.save(); CX.shadowBlur = 10; CX.shadowColor = CX.fillStyle;
+        if(e.type === 'stalker') { CX.beginPath(); CX.arc(ex, ey, 6, 0, Math.PI*2); CX.fill(); } else CX.fillRect(ex-6, ey-6, 12, 12);
+        CX.restore();
+        if (e.state==='charge') { CX.fillStyle = '#f00'; CX.fillRect(ex-8, ey+10, 16*(e.charge/2), 2); }
+      });
+
+      const px = G.cx * T + T/2, py = G.cy * T + T/2;
+      CX.fillStyle = P.aura; CX.save(); CX.shadowBlur = 15; CX.shadowColor = P.aura; CX.beginPath(); CX.arc(px, py, 7, 0, Math.PI*2); CX.fill(); CX.restore();
+      CX.fillStyle = '#fff'; CX.fillRect(px-2, py-2, 4, 4);
+
+      Particles.forEach(p => { CX.fillStyle = `rgba(${parseInt(p.col.slice(1,3),16)},${parseInt(p.col.slice(3,5),16)},${parseInt(p.col.slice(5,7),16)},${p.life})`; CX.fillRect(p.x, p.y, p.size, p.size); });
+      CX.fillStyle = 'rgba(0,0,0,0.15)'; for(let y=0; y<CV.height; y+=4) CX.fillRect(0, y, CV.width, 1);
+    }
+
+    function loop(time) {
+      const dt = (time - timeLast) / 1000; timeLast = time; update(utils.clamp(dt, 0, 0.1)); render(time); requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('keydown', e => {
+      const c = e.code;
+      if(c === 'Backquote') { // Tilde (~) toggles admin
+        const ap = document.getElementById('admin-panel');
+        if(ap.classList.contains('open')) ap.classList.remove('open');
+        else ap.classList.add('open');
+        return;
+      }
+
+      // Ignore input if Admin panel is open or typing inside inputs
+      if(e.target.tagName==='INPUT' || document.getElementById('admin-panel').classList.contains('open')) return;
+
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyE','KeyR'].includes(c)) e.preventDefault();
+      Audio.init(); 
+
+      if (state === 'TITLE' || state === 'OVER' || state === 'WON') { if (c === 'Space' || c === 'KeyR') { initGame(1); } return; }
+
+      if (G.invOpen) {
+        if (c === 'ArrowLeft') { G.selSlot = (G.selSlot - 1 + 10) % 10; syncUI(); Audio.step(); }
+        if (c === 'ArrowRight') { G.selSlot = (G.selSlot + 1) % 10; syncUI(); Audio.step(); }
+        if (c === 'Space') useSlot(); if (c === 'KeyE') toggleInv();
+        return;
+      }
+
+      switch(c) {
+        case 'ArrowUp': movePlayer(0, -1); break; case 'ArrowDown': movePlayer(0, 1); break;
+        case 'ArrowLeft': movePlayer(-1, 0); break; case 'ArrowRight': movePlayer(1, 0); break;
+        case 'KeyE': toggleInv(); break; case 'KeyR': initGame(1, CONFIG.maxAura); break;
+        case 'Space': { const now = Date.now(); if (now - G.lastSpc < 300) { attack(); G.lastSpc = 0; } else { interact(); G.lastSpc = now; } break; }
+      }
+    });
+
+    startScreen();
+    requestAnimationFrame(t => { timeLast = t; loop(t); });
+  </script>
+</body>
+</html>
